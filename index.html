@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاسبه‌گر هزینه سفر</title>
+
+    <!-- Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Vazirmatn Font -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet"
+        type="text/css" />
+
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex items-center justify-center py-8">
+    <div class="bg-white shadow-2xl rounded-2xl w-full max-w-md mx-4 p-6">
+        <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">محاسبه‌گر هزینه سفر</h1>
+
+        <!-- Tab Navigation -->
+        <div class="flex mb-6 bg-gray-100 p-1 rounded-lg">
+            <button onclick="showTab('participants')" id="participantsTab"
+                class="flex-1 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+                شرکت‌کنندگان
+            </button>
+            <button onclick="showTab('expenses')" id="expensesTab"
+                class="flex-1 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+                هزینه‌ها
+            </button>
+            <button onclick="showTab('settlement')" id="settlementTab"
+                class="flex-1 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+                تسویه‌حساب
+            </button>
+        </div>
+
+        <!-- Participants Tab -->
+        <div id="participantsSection">
+            <div class="flex mb-4">
+                <input type="text" id="participantName" placeholder="نام شرکت‌کننده"
+                    class="flex-grow p-2 border rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="addParticipant()"
+                    class="bg-green-500 text-white px-4 rounded-l-lg hover:bg-green-600 transition duration-300">
+                    اضافه
+                </button>
+            </div>
+            <div id="error" class="text-red-500 mb-2 text-sm h-5"></div>
+            <div id="participantList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+        </div>
+
+        <!-- Expenses Tab -->
+        <div id="expensesSection" class="hidden">
+            <div id="expenseForm" class="mb-6">
+                <input type="text" id="expenseDescription" placeholder="توضیح هزینه"
+                    class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
+                <input type="text" id="expenseAmount" placeholder="مبلغ به تومان"
+                    class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
+                <select id="paidBy"
+                    class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
+                    <option value="">پرداخت کننده</option>
+                </select>
+                <select id="sharedBy" multiple
+                    class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24">
+                </select>
+                <button onclick="addExpense()"
+                    class="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition duration-300 mt-2">
+                    ثبت هزینه
+                </button>
+            </div>
+            <div id="expenseList" class="max-h-96 overflow-y-auto space-y-2"></div>
+        </div>
+
+        <!-- Settlement Tab -->
+        <div id="settlementSection" class="hidden">
+            <div id="summary" class="rounded-lg"></div>
+            <button onclick="exportToExcel()"
+                class="mt-4 w-full bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 transition duration-300">
+                دریافت فایل اکسل
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let participants = [];
+        let expenses = [];
+        let settlement = {};  // Add this line with other global variables
+
+        // Local Storage functions
+        function saveToLocalStorage() {
+            localStorage.setItem('dongyParticipants', JSON.stringify(participants));
+            localStorage.setItem('dongyExpenses', JSON.stringify(expenses));
+        }
+
+        function loadFromLocalStorage() {
+            const savedParticipants = localStorage.getItem('dongyParticipants');
+            const savedExpenses = localStorage.getItem('dongyExpenses');
+
+            if (savedParticipants) {
+                participants = JSON.parse(savedParticipants);
+                updateParticipantList();
+                updateParticipantSelects();
+                document.getElementById('expenseForm').classList.toggle('hidden', participants.length < 2);
+            }
+
+            if (savedExpenses) {
+                expenses = JSON.parse(savedExpenses);
+                updateExpenseList();
+                calculateSettlement();
+            }
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadFromLocalStorage);
+
+        // Currency formatting function
+        function formatCurrency(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        // Parse currency input
+        function parseCurrency(currencyStr) {
+            return parseInt(currencyStr.replace(/,/g, ''), 10) || 0;
+        }
+
+        // Enhance expense amount input
+        document.getElementById('expenseAmount').addEventListener('input', function (e) {
+            // Remove non-digit characters
+            let value = this.value.replace(/[^0-9]/g, '');
+
+            // Format with comma
+            this.value = formatCurrency(value);
+        });
+
+        function addParticipant() {
+            const participantNameInput = document.getElementById('participantName');
+            const participantName = participantNameInput.value.trim();
+            const errorDiv = document.getElementById('error');
+
+            // Validation
+            if (!participantName) {
+                errorDiv.textContent = 'لطفاً نام شرکت‌کننده را وارد کنید';
+                return;
+            }
+
+            if (participants.includes(participantName)) {
+                errorDiv.textContent = 'این نام قبلاً ثبت شده است';
+                return;
+            }
+
+            // Clear error
+            errorDiv.textContent = '';
+
+            // Add participant
+            participants.push(participantName);
+            saveToLocalStorage();
+            updateParticipantList();
+            updateParticipantSelects();
+
+            // Clear input
+            participantNameInput.value = '';
+
+            // Show expense form if at least 2 participants
+            document.getElementById('expenseForm').classList.toggle('hidden', participants.length < 2);
+        }
+
+        function updateParticipantList() {
+            const participantListDiv = document.getElementById('participantList');
+            participantListDiv.innerHTML = participants.map((participant, index) => `
+                <div class="flex justify-between items-center bg-gray-100 p-2 rounded-lg">
+                    <span>${participant}</span>
+                    <button 
+                        onclick="removeParticipant(${index})" 
+                        class="bg-red-500 text-white px-2 py-1 rounded-lg text-sm hover:bg-red-600 transition duration-300"
+                    >
+                        حذف
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function removeParticipant(index) {
+            const removedParticipant = participants[index];
+            participants.splice(index, 1);
+            updateParticipantList();
+            updateParticipantSelects();
+
+            // Hide expense form if less than 2 participants
+            document.getElementById('expenseForm').classList.toggle('hidden', participants.length < 2);
+
+            // Remove expenses related to this participant
+            expenses = expenses.filter(expense =>
+                expense.paidBy !== removedParticipant &&
+                !expense.sharedBy.includes(removedParticipant)
+            );
+            saveToLocalStorage();
+            updateExpenseList();
+            calculateSettlement();
+        }
+
+        function updateParticipantSelects() {
+            const paidBySelect = document.getElementById('paidBy');
+            const sharedBySelect = document.getElementById('sharedBy');
+
+            // Clear previous options
+            paidBySelect.innerHTML = '<option value="">پرداخت کننده</option>';
+            sharedBySelect.innerHTML = '';
+
+            // Add participants to selects
+            participants.forEach(participant => {
+                const paidOption = document.createElement('option');
+                paidOption.value = participant;
+                paidOption.textContent = participant;
+                paidBySelect.appendChild(paidOption);
+
+                const sharedOption = document.createElement('option');
+                sharedOption.value = participant;
+                sharedOption.textContent = participant;
+                sharedBySelect.appendChild(sharedOption);
+            });
+        }
+
+        function addExpense() {
+            const description = document.getElementById('expenseDescription').value.trim();
+            const expenseAmount = parseCurrency(document.getElementById('expenseAmount').value);
+            const paidBy = document.getElementById('paidBy').value;
+            const sharedBy = Array.from(document.getElementById('sharedBy').selectedOptions).map(opt => opt.value);
+
+            const errorDiv = document.getElementById('error');
+
+            // Validation
+            if (!description) {
+                errorDiv.textContent = 'لطفاً توضیح هزینه را وارد کنید';
+                return;
+            }
+            if (expenseAmount <= 0) {
+                errorDiv.textContent = 'لطفاً مبلغ معتبر وارد کنید';
+                return;
+            }
+            if (!paidBy) {
+                errorDiv.textContent = 'لطفاً پرداخت کننده را انتخاب کنید';
+                return;
+            }
+            if (sharedBy.length === 0) {
+                errorDiv.textContent = 'لطفاً افراد سهیم در هزینه را انتخاب کنید';
+                return;
+            }
+
+            // Clear error
+            errorDiv.textContent = '';
+
+            const expense = {
+                description,
+                expenseAmount,
+                paidBy,
+                sharedBy
+            };
+
+            expenses.push(expense);
+            saveToLocalStorage();
+            updateExpenseList();
+            calculateSettlement();
+
+            // Clear form
+            document.getElementById('expenseDescription').value = '';
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('paidBy').selectedIndex = 0;
+            document.getElementById('sharedBy').selectedIndex = -1;
+        }
+
+        function updateExpenseList() {
+            const expenseList = document.getElementById('expenseList');
+            expenseList.innerHTML = expenses.map((expense, index) => `
+                <div class="bg-gray-100 p-3 rounded-lg flex justify-between items-center">
+                    <div>
+                        <div class="font-bold">${expense.description}</div>
+                        <div class="text-sm text-gray-600">
+                            ${formatCurrency(expense.expenseAmount)} تومان 
+                            (پرداخت توسط ${expense.paidBy}، تقسیم بین: ${expense.sharedBy.join(', ')})
+                        </div>
+                    </div>
+                    <button 
+                        onclick="deleteExpense(${index})" 
+                        class="bg-red-500 text-white px-2 py-1 rounded-lg text-sm hover:bg-red-600 transition duration-300"
+                    >
+                        حذف
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function deleteExpense(index) {
+            expenses.splice(index, 1);
+            saveToLocalStorage();
+            updateExpenseList();
+            calculateSettlement();
+        }
+
+        function calculateSettlement() {
+            const totalPaidBy = {};
+            const totalSharedBy = {};
+
+            // Initialize totals for each participant
+            participants.forEach(person => {
+                totalPaidBy[person] = 0;
+                totalSharedBy[person] = 0;
+            });
+
+            // Calculate total paid and shared amounts
+            expenses.forEach(expense => {
+                // Add the full amount to what this person paid
+                totalPaidBy[expense.paidBy] += expense.expenseAmount;
+
+                // Calculate share per person
+                const sharePerPerson = expense.expenseAmount / expense.sharedBy.length;
+
+                // Distribute shares
+                expense.sharedBy.forEach(person => {
+                    totalSharedBy[person] += sharePerPerson;
+                });
+            });
+
+            // Calculate final settlements (remove const declaration since we're using global settlement)
+            settlement = {};  // Modify this line - using global settlement
+            participants.forEach(person => {
+                settlement[person] = totalPaidBy[person] - totalSharedBy[person];
+            });
+
+            // Display result
+            const summaryDiv = document.getElementById('summary');
+            summaryDiv.innerHTML = `
+                <h2 class="text-lg font-bold mb-3 text-center">خلاصه محاسبات</h2>
+                ${participants.map(person => {
+                const amount = settlement[person];
+                const status = amount > 0 ? 'طلبکار' : amount < 0 ? 'بدهکار' : 'تسویه';
+                const absAmount = Math.abs(amount);
+
+                return `
+                        <div class="flex justify-between items-center mb-2 p-2 rounded-lg ${status === 'طلبکار' ? 'bg-green-100' :
+                        status === 'بدهکار' ? 'bg-red-100' : 'bg-gray-200'
+                    }">
+                            <span class="font-medium">${person}</span>
+                            <span class="text-sm">
+                                ${formatCurrency(Math.round(absAmount / 1000) * 1000)} تومان 
+                                ${status === 'طلبکار' ? '👍 طلبکار' : status === 'بدهکار' ? '👀 بدهکار' : '✅ تسویه'}
+                            </span>
+                        </div>
+                    `;
+            }).join('')}
+            `;
+        }
+
+        // Add new tab functionality
+        function showTab(tabName) {
+            // Hide all sections
+            document.getElementById('participantsSection').classList.add('hidden');
+            document.getElementById('expensesSection').classList.add('hidden');
+            document.getElementById('settlementSection').classList.add('hidden');
+
+            // Remove active class from all tabs
+            document.getElementById('participantsTab').classList.remove('bg-white', 'shadow-sm');
+            document.getElementById('expensesTab').classList.remove('bg-white', 'shadow-sm');
+            document.getElementById('settlementTab').classList.remove('bg-white', 'shadow-sm');
+
+            // Show selected section and activate tab
+            document.getElementById(tabName + 'Section').classList.remove('hidden');
+            document.getElementById(tabName + 'Tab').classList.add('bg-white', 'shadow-sm');
+        }
+
+        // Initialize tabs
+        document.addEventListener('DOMContentLoaded', function () {
+            showTab('participants');
+            loadFromLocalStorage();
+        });
+
+        // Modify the existing addParticipant function
+        const originalAddParticipant = addParticipant;
+        addParticipant = function () {
+            originalAddParticipant();
+            if (participants.length >= 2) {
+                // showTab('expenses');
+            }
+        }
+
+        // Modify the existing addExpense function
+        const originalAddExpense = addExpense;
+        addExpense = function () {
+            originalAddExpense();
+            // showTab('settlement');
+        }
+
+        function exportToExcel() {
+            // Ensure settlements are calculated
+            if (Object.keys(settlement).length === 0) {
+                calculateSettlement();
+            }
+
+            // Create CSV content
+            let csvContent = "نام,وضعیت,مبلغ (تومان)\n";
+
+            participants.forEach(person => {
+                const amount = settlement[person];
+                const status = amount > 0 ? 'طلبکار' : amount < 0 ? 'بدهکار' : 'تسویه';
+                const absAmount = Math.abs(amount);
+                csvContent += `${person},${status},${Math.round(absAmount / 1000) * 1000}\n`;
+            });
+
+            // Add expenses section
+            csvContent += "\nتوضیح هزینه,مبلغ,پرداخت کننده,تقسیم بین\n";
+            expenses.forEach(expense => {
+                csvContent += `${expense.description},${expense.expenseAmount},${expense.paidBy},"${expense.sharedBy.join(', ')}"\n`;
+            });
+
+            // Create blob and download
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'expenses_settlement.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+
+</html>
