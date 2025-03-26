@@ -106,7 +106,7 @@
     <script>
         let participants = [];
         let expenses = [];
-        let settlement = {};  // Add this line with other global variables
+        let settlement = {};
 
         // Local Storage functions
         function saveToLocalStorage() {
@@ -147,10 +147,7 @@
 
         // Enhance expense amount input
         document.getElementById('expenseAmount').addEventListener('input', function (e) {
-            // Remove non-digit characters
             let value = this.value.replace(/[^0-9]/g, '');
-
-            // Format with comma
             this.value = formatCurrency(value);
         });
 
@@ -159,7 +156,6 @@
             const participantName = participantNameInput.value.trim();
             const errorDiv = document.getElementById('error');
 
-            // Validation
             if (!participantName) {
                 errorDiv.textContent = 'لطفاً نام شرکت‌کننده را وارد کنید';
                 return;
@@ -170,19 +166,12 @@
                 return;
             }
 
-            // Clear error
             errorDiv.textContent = '';
-
-            // Add participant
             participants.push(participantName);
             saveToLocalStorage();
             updateParticipantList();
             updateParticipantSelects();
-
-            // Clear input
             participantNameInput.value = '';
-
-            // Show expense form if at least 2 participants
             document.getElementById('expenseForm').classList.toggle('hidden', participants.length < 2);
         }
 
@@ -206,11 +195,7 @@
             participants.splice(index, 1);
             updateParticipantList();
             updateParticipantSelects();
-
-            // Hide expense form if less than 2 participants
             document.getElementById('expenseForm').classList.toggle('hidden', participants.length < 2);
-
-            // Remove expenses related to this participant
             expenses = expenses.filter(expense =>
                 expense.paidBy !== removedParticipant &&
                 !expense.sharedBy.includes(removedParticipant)
@@ -224,11 +209,9 @@
             const paidBySelect = document.getElementById('paidBy');
             const sharedBySelect = document.getElementById('sharedBy');
 
-            // Clear previous options
             paidBySelect.innerHTML = '<option value="">پرداخت کننده</option>';
             sharedBySelect.innerHTML = '';
 
-            // Add participants to selects
             participants.forEach(participant => {
                 const paidOption = document.createElement('option');
                 paidOption.value = participant;
@@ -250,7 +233,6 @@
 
             const errorDiv = document.getElementById('error');
 
-            // Validation
             if (!description) {
                 errorDiv.textContent = 'لطفاً توضیح هزینه را وارد کنید';
                 return;
@@ -268,7 +250,6 @@
                 return;
             }
 
-            // Clear error
             errorDiv.textContent = '';
 
             const expense = {
@@ -283,7 +264,6 @@
             updateExpenseList();
             calculateSettlement();
 
-            // Clear form
             document.getElementById('expenseDescription').value = '';
             document.getElementById('expenseAmount').value = '';
             document.getElementById('paidBy').selectedIndex = 0;
@@ -330,23 +310,21 @@
 
             // Calculate total paid and shared amounts
             expenses.forEach(expense => {
-                // Add the full amount to what this person paid
                 totalPaidBy[expense.paidBy] += expense.expenseAmount;
-
-                // Calculate share per person
                 const sharePerPerson = expense.expenseAmount / expense.sharedBy.length;
-
-                // Distribute shares
                 expense.sharedBy.forEach(person => {
                     totalSharedBy[person] += sharePerPerson;
                 });
             });
 
-            // Calculate final settlements (remove const declaration since we're using global settlement)
-            settlement = {};  // Modify this line - using global settlement
+            // Calculate final settlements
+            settlement = {};
             participants.forEach(person => {
                 settlement[person] = totalPaidBy[person] - totalSharedBy[person];
             });
+
+            // Calculate transactions
+            const transactions = calculateTransactions();
 
             // Display result
             const summaryDiv = document.getElementById('summary');
@@ -356,7 +334,6 @@
                 const amount = settlement[person];
                 const status = amount > 0 ? 'طلبکار' : amount < 0 ? 'بدهکار' : 'تسویه';
                 const absAmount = Math.abs(amount);
-
                 return `
                         <div class="flex justify-between items-center mb-2 p-2 rounded-lg ${status === 'طلبکار' ? 'bg-green-100' :
                         status === 'بدهکار' ? 'bg-red-100' : 'bg-gray-200'
@@ -369,33 +346,91 @@
                         </div>
                     `;
             }).join('')}
+                <h3 class="text-md font-bold mt-6 mb-2">تراکنش‌های پیشنهادی</h3>
+                ${transactions.length === 0 ?
+                    '<p class="text-gray-500">هیچ تراکنشی لازم نیست.</p>' :
+                    transactions.map(t => {
+                        const amount = Math.round(t.amount);
+                        return `
+                            <div class="flex justify-between items-center bg-blue-100 p-2 rounded-lg mb-2">
+                                <span>${t.from} ← ${t.to}</span>
+                                <span>${formatCurrency(amount)} تومان</span>
+                            </div>
+                        `;
+                    }).join('')
+                }
             `;
         }
 
-        // Add new tab functionality
+        function calculateTransactions() {
+            const debtors = [];
+            const creditors = [];
+            const epsilon = 0.01; // Small threshold for floating-point precision
+
+            // Separate debtors and creditors from settlement
+            for (const person in settlement) {
+                const amount = settlement[person];
+                if (amount < -epsilon) {
+                    debtors.push({ person, amount: -amount }); // Store debt as positive
+                } else if (amount > epsilon) {
+                    creditors.push({ person, amount });
+                }
+            }
+
+            // Sort debtors by amount descending (largest debt first)
+            debtors.sort((a, b) => b.amount - a.amount);
+            // Sort creditors by amount descending (largest credit first)
+            creditors.sort((a, b) => b.amount - a.amount);
+
+            const transactions = [];
+
+            // Match debtors and creditors
+            while (debtors.length > 0 && creditors.length > 0) {
+                const debtor = debtors[0];
+                const creditor = creditors[0];
+                const transactionAmount = Math.min(debtor.amount, creditor.amount);
+
+                // Record the transaction
+                transactions.push({
+                    from: debtor.person,
+                    to: creditor.person,
+                    amount: transactionAmount
+                });
+
+                // Update remaining amounts
+                debtor.amount -= transactionAmount;
+                creditor.amount -= transactionAmount;
+
+                // Remove if settled
+                if (debtor.amount < epsilon) {
+                    debtors.shift();
+                }
+                if (creditor.amount < epsilon) {
+                    creditors.shift();
+                }
+            }
+
+            return transactions;
+        }
+
         function showTab(tabName) {
-            // Hide all sections
             document.getElementById('participantsSection').classList.add('hidden');
             document.getElementById('expensesSection').classList.add('hidden');
             document.getElementById('settlementSection').classList.add('hidden');
 
-            // Remove active class from all tabs
             document.getElementById('participantsTab').classList.remove('bg-white', 'shadow-sm');
             document.getElementById('expensesTab').classList.remove('bg-white', 'shadow-sm');
             document.getElementById('settlementTab').classList.remove('bg-white', 'shadow-sm');
 
-            // Show selected section and activate tab
             document.getElementById(tabName + 'Section').classList.remove('hidden');
             document.getElementById(tabName + 'Tab').classList.add('bg-white', 'shadow-sm');
         }
 
-        // Initialize tabs
         document.addEventListener('DOMContentLoaded', function () {
             showTab('participants');
             loadFromLocalStorage();
         });
 
-        // Modify the existing addParticipant function
         const originalAddParticipant = addParticipant;
         addParticipant = function () {
             originalAddParticipant();
@@ -404,7 +439,6 @@
             }
         }
 
-        // Modify the existing addExpense function
         const originalAddExpense = addExpense;
         addExpense = function () {
             originalAddExpense();
@@ -412,14 +446,11 @@
         }
 
         function exportToExcel() {
-            // Ensure settlements are calculated
             if (Object.keys(settlement).length === 0) {
                 calculateSettlement();
             }
 
-            // Create CSV content
             let csvContent = "نام,وضعیت,مبلغ (تومان)\n";
-
             participants.forEach(person => {
                 const amount = settlement[person];
                 const status = amount > 0 ? 'طلبکار' : amount < 0 ? 'بدهکار' : 'تسویه';
@@ -427,13 +458,11 @@
                 csvContent += `${person},${status},${Math.round(absAmount / 1000) * 1000}\n`;
             });
 
-            // Add expenses section
             csvContent += "\nتوضیح هزینه,مبلغ,پرداخت کننده,تقسیم بین\n";
             expenses.forEach(expense => {
                 csvContent += `${expense.description},${expense.expenseAmount},${expense.paidBy},"${expense.sharedBy.join(', ')}"\n`;
             });
 
-            // Create blob and download
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
