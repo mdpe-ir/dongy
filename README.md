@@ -2,6 +2,12 @@
 
 A simple and elegant expense splitting web application designed for tracking group expenses and calculating settlements. Perfect for trips, shared housing, or any situation where expenses need to be split among multiple people.
 
+## Screenshots
+
+![Participants Tab](screenshots/image.png)
+![Expenses Tab](screenshots/image%20copy.png)
+![Settlement Tab](screenshots/image%20copy%202.png)
+
 ## Features
 
 - 👥 Add and manage multiple participants
