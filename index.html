@@ -281,14 +281,43 @@
                             (پرداخت توسط ${expense.paidBy}، تقسیم بین: ${expense.sharedBy.join(', ')})
                         </div>
                     </div>
-                    <button 
-                        onclick="deleteExpense(${index})" 
-                        class="bg-red-500 text-white px-2 py-1 rounded-lg text-sm hover:bg-red-600 transition duration-300"
-                    >
-                        حذف
-                    </button>
+                    <div class="flex gap-2">
+                        <button 
+                            onclick="editExpense(${index})" 
+                            class="bg-blue-500 text-white px-2 py-1 rounded-lg text-sm hover:bg-blue-600 transition duration-300"
+                        >
+                            ویرایش
+                        </button>
+                        <button 
+                            onclick="deleteExpense(${index})" 
+                            class="bg-red-500 text-white px-2 py-1 rounded-lg text-sm hover:bg-red-600 transition duration-300"
+                        >
+                            حذف
+                        </button>
+                    </div>
                 </div>
             `).join('');
+        }
+
+        function editExpense(index) {
+            const expense = expenses[index];
+            document.getElementById('expenseDescription').value = expense.description;
+            document.getElementById('expenseAmount').value = formatCurrency(expense.expenseAmount);
+            document.getElementById('paidBy').value = expense.paidBy;
+
+            const sharedBySelect = document.getElementById('sharedBy');
+            Array.from(sharedBySelect.options).forEach(option => {
+                option.selected = expense.sharedBy.includes(option.value);
+            });
+
+            // Remove the old expense
+            expenses.splice(index, 1);
+            saveToLocalStorage();
+            updateExpenseList();
+            calculateSettlement();
+
+            // Switch to expenses tab if not already there
+            showTab('expenses');
         }
 
         function deleteExpense(index) {
