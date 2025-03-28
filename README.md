@@ -1,6 +1,18 @@
-# Dongy (دانگی)
+# Dongy (دانگی) 💰
 
-A simple and elegant expense splitting web application designed for tracking group expenses and calculating settlements. Perfect for trips, shared housing, or any situation where expenses need to be split among multiple people.
+[![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white)](https://html.spec.whatwg.org/)
+[![CSS3](https://img.shields.io/badge/css3-%231572B6.svg?style=for-the-badge&logo=css3&logoColor=white)](https://www.w3.org/Style/CSS/)
+[![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+
+> 🇮🇷 A modern expense splitting web app with Persian (Farsi) interface. Perfect for managing shared expenses during trips, gatherings, or roommate situations. No installation required - just open and use!
+
+### ✨ Quick Features
+- 🌐 Pure JavaScript - no backend required
+- 💾 Local storage for data persistence
+- 📱 Responsive design
+- 📊 Smart settlement calculations
+- 📥 Export to Excel/CSV
 
 ## Screenshots
 
